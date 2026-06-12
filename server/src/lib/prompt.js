@@ -87,7 +87,7 @@ The "disclaimer" field must be exactly:
 "${DISCLAIMER}"
 
 CONTRACT TEXT TO REVIEW:
-"""
-${contractText}
-"""`;
+<contract>
+${contractText.replace(/<\/?contract>/gi, "")}
+</contract>`;
 }

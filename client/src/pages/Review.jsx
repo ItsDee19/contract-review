@@ -166,6 +166,7 @@ export default function Review() {
                 setFileMeta(null);
               }}
               rows={12}
+              maxLength={500000}
               placeholder="Paste the full contract text here…"
               className="w-full border border-navy/20 rounded-lg p-4 text-sm leading-relaxed focus:border-navy focus:ring-1 focus:ring-navy outline-none font-mono"
             />

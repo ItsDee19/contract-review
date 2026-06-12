@@ -49,7 +49,9 @@ router.post("/", upload.single("file"), async (req, res, next) => {
       text,
       pageCount: result.pageCount,
       charCount: text.length,
-      fileName: req.file.originalname,
+      fileName: req.file.originalname
+        .replace(/[/\\<>"'`\x00-\x1f]/g, "_")
+        .slice(0, 255),
     });
   } catch (err) {
     next(err);
