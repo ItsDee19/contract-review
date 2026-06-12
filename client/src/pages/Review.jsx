@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { uploadPdf, reviewContract } from "../lib/api.js";
+import { reviewContract } from "../lib/api.js";
+import { parsePdfInBrowser } from "../lib/pdfParser.js";
 import { SAMPLE_CONTRACT } from "../lib/sampleContract.js";
 import LoadingSteps from "../components/LoadingSteps.jsx";
 
@@ -38,11 +39,25 @@ export default function Review() {
     }
     setUploading(true);
     try {
-      const data = await uploadPdf(file);
-      setText(data.text);
-      setFileMeta({ fileName: data.fileName, pageCount: data.pageCount, charCount: data.charCount });
+      const result = await parsePdfInBrowser(file);
+      if (!result.text) {
+        setError("This PDF has no selectable text (it’s likely a scanned image). Paste the contract text instead.");
+        setFileMeta(null);
+        return;
+      }
+      setText(result.text);
+      setFileMeta({
+        fileName: file.name,
+        pageCount: result.pageCount,
+        charCount: result.text.length,
+      });
     } catch (e) {
-      setError(e.message);
+      const passworded = /password/i.test(e?.message || "");
+      setError(
+        passworded
+          ? "This PDF is password-protected. Remove the password and try again, or paste the text instead."
+          : "Couldn’t read that PDF. It may be corrupted — try re-exporting it, or paste the text instead."
+      );
       setFileMeta(null);
     } finally {
       setUploading(false);
