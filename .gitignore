@@ -1,0 +1,16 @@
+# Dependencies
+node_modules/
+
+# Environment — never commit keys
+.env
+.env.local
+.env.*.local
+
+# Builds
+dist/
+build/
+
+# Logs & OS noise
+*.log
+npm-debug.log*
+.DS_Store
