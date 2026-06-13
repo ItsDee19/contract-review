@@ -23,9 +23,9 @@ function getModel() {
 }
 
 /**
- * Sends the full prompt to Gemini 1.5 Flash and returns parsed JSON.
- * responseMimeType: "application/json" forces valid JSON output —
- * no markdown fence stripping needed.
+ * Sends the full prompt to Gemini and returns parsed JSON.
+ * responseMimeType: "application/json" forces valid JSON output on most models,
+ * but thinking models (2.5+) may still wrap it in markdown fences.
  */
 export async function analyzeContract(fullPrompt) {
   const model = getModel();
@@ -37,7 +37,7 @@ export async function analyzeContract(fullPrompt) {
       generationConfig: {
         responseMimeType: "application/json",
         temperature: 0.2,
-        maxOutputTokens: 8192,
+        maxOutputTokens: 16384,
       },
     });
   } catch (e) {
@@ -50,11 +50,23 @@ export async function analyzeContract(fullPrompt) {
     throw err;
   }
 
-  const text = result.response.text();
+  const raw = result.response.text();
+
+  // Try direct parse first (works for most models with responseMimeType json)
   try {
-    return JSON.parse(text);
+    return JSON.parse(raw);
   } catch {
-    // Extremely rare with responseMimeType json, but never trust blindly.
+    // Thinking models may wrap JSON in ```json ... ``` fences or include preamble text.
+    // Extract the first { ... } or [ ... ] block.
+    const jsonMatch =
+      raw.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/) ||
+      raw.match(/(\{[\s\S]*\})/);
+    if (jsonMatch) {
+      try {
+        return JSON.parse(jsonMatch[1]);
+      } catch { /* fall through */ }
+    }
+    console.error("[gemini] Non-JSON response (first 500 chars):", raw.slice(0, 500));
     const err = new Error("Gemini returned non-JSON output");
     err.status = 502;
     err.publicMessage =
