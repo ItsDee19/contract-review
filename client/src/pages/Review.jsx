@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { reviewContract } from "../lib/api.js";
 import { parsePdfInBrowser } from "../lib/pdfParser.js";
+import { parseDocxInBrowser } from "../lib/docxParser.js";
 import { SAMPLE_CONTRACT } from "../lib/sampleContract.js";
 import LoadingSteps from "../components/LoadingSteps.jsx";
 
@@ -30,20 +31,52 @@ export default function Review() {
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState("");
 
+  const ACCEPTED_MIME_TYPES = [
+    "application/pdf",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/msword",
+  ];
+
+  function isDocx(file) {
+    return (
+      file.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+      file.type === "application/msword" ||
+      file.name.toLowerCase().endsWith(".docx") ||
+      file.name.toLowerCase().endsWith(".doc")
+    );
+  }
+
   async function handleFile(file) {
     if (!file) return;
     setError("");
-    if (file.type !== "application/pdf") {
-      setError("Only PDF files are accepted here. For Word documents, copy the text and use “Paste text”.");
+
+    const accepted =
+      ACCEPTED_MIME_TYPES.includes(file.type) ||
+      file.name.toLowerCase().endsWith(".pdf") ||
+      file.name.toLowerCase().endsWith(".docx") ||
+      file.name.toLowerCase().endsWith(".doc");
+
+    if (!accepted) {
+      setError("Only PDF and Word (.docx) files are accepted. For other formats, copy the text and use “Paste text”.");
       return;
     }
     setUploading(true);
     try {
-      const result = await parsePdfInBrowser(file);
-      if (!result.text) {
-        setError("This PDF has no selectable text (it’s likely a scanned image). Paste the contract text instead.");
-        setFileMeta(null);
-        return;
+      let result;
+      if (isDocx(file)) {
+        result = await parseDocxInBrowser(file);
+        if (!result.text) {
+          setError("This Word document appears to be empty. Paste the contract text instead.");
+          setFileMeta(null);
+          return;
+        }
+      } else {
+        result = await parsePdfInBrowser(file);
+        if (!result.text) {
+          setError("This PDF has no selectable text (it’s likely a scanned image). Paste the contract text instead.");
+          setFileMeta(null);
+          return;
+        }
       }
       setText(result.text);
       setFileMeta({
@@ -53,11 +86,15 @@ export default function Review() {
       });
     } catch (e) {
       const passworded = /password/i.test(e?.message || "");
-      setError(
-        passworded
-          ? "This PDF is password-protected. Remove the password and try again, or paste the text instead."
-          : "Couldn’t read that PDF. It may be corrupted — try re-exporting it, or paste the text instead."
-      );
+      if (isDocx(file)) {
+        setError("Couldn’t read that Word document. Make sure it’s a valid .docx file, or paste the text instead.");
+      } else {
+        setError(
+          passworded
+            ? "This PDF is password-protected. Remove the password and try again, or paste the text instead."
+            : "Couldn’t read that PDF. It may be corrupted — try re-exporting it, or paste the text instead."
+        );
+      }
       setFileMeta(null);
     } finally {
       setUploading(false);
@@ -104,7 +141,7 @@ export default function Review() {
 
         <div className="mt-3 inline-flex rounded-md border border-navy/20 overflow-hidden text-sm font-semibold" role="tablist">
           {[
-            ["upload", "Upload PDF"],
+            ["upload", "Upload PDF / Word"],
             ["paste", "Paste text"],
           ].map(([m, label]) => (
             <button
@@ -136,7 +173,7 @@ export default function Review() {
             }`}
           >
             {uploading ? (
-              <p className="font-medium animate-pulse">Reading your PDF…</p>
+              <p className="font-medium animate-pulse">Reading your file…</p>
             ) : fileMeta ? (
               <div>
                 <p className="font-semibold">📄 {fileMeta.fileName}</p>
@@ -156,18 +193,18 @@ export default function Review() {
               </div>
             ) : (
               <>
-                <p className="font-medium">Drag and drop a PDF here</p>
+                <p className="font-medium">Drag and drop a PDF or Word document here</p>
                 <p className="mt-1 text-sm text-navy/55">or</p>
                 <button className="btn-secondary mt-3 !py-2 text-sm" onClick={() => fileInputRef.current?.click()}>
                   Choose a file
                 </button>
-                <p className="mt-3 text-xs text-navy/50">PDF only · up to 15 MB · parsed on the server, never stored</p>
+                <p className="mt-3 text-xs text-navy/50">PDF or .docx · up to 15 MB · parsed in your browser, never stored</p>
               </>
             )}
             <input
               ref={fileInputRef}
               type="file"
-              accept="application/pdf"
+              accept="application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword,.pdf,.docx,.doc"
               className="hidden"
               onChange={(e) => handleFile(e.target.files?.[0])}
             />
