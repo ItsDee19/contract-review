@@ -11,11 +11,13 @@ function getModel() {
       "Server is not configured with a Gemini API key. Add GEMINI_API_KEY to server/.env (free key: https://aistudio.google.com/app/apikey).";
     throw err;
   }
-  // Re-instantiate if the key has changed (e.g. between hot-reloads)
+  // Re-instantiate if the key or model has changed (e.g. between hot-reloads)
+  const modelName = process.env.GEMINI_MODEL || "gemini-2.0-flash-lite";
   if (!_model || _lastKey !== process.env.GEMINI_API_KEY) {
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    _model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+    _model = genAI.getGenerativeModel({ model: modelName });
     _lastKey = process.env.GEMINI_API_KEY;
+    console.log(`[gemini] Using model: ${modelName}`);
   }
   return _model;
 }
