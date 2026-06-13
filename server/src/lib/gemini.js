@@ -1,6 +1,7 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 let _model = null;
+let _lastKey = null;
 
 function getModel() {
   if (!process.env.GEMINI_API_KEY) {
@@ -10,9 +11,11 @@ function getModel() {
       "Server is not configured with a Gemini API key. Add GEMINI_API_KEY to server/.env (free key: https://aistudio.google.com/app/apikey).";
     throw err;
   }
-  if (!_model) {
+  // Re-instantiate if the key has changed (e.g. between hot-reloads)
+  if (!_model || _lastKey !== process.env.GEMINI_API_KEY) {
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    _model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    _model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+    _lastKey = process.env.GEMINI_API_KEY;
   }
   return _model;
 }
@@ -36,6 +39,8 @@ export async function analyzeContract(fullPrompt) {
       },
     });
   } catch (e) {
+    // Log the real error for Vercel function logs / local console
+    console.error("[gemini] API call failed:", e?.message ?? e);
     const err = new Error(`Gemini API call failed: ${e.message}`);
     err.status = 502;
     err.publicMessage =
