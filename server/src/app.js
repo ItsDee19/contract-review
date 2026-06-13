@@ -8,6 +8,10 @@ import uploadRouter from "./routes/upload.js";
 
 const app = express();
 
+// ── Trust Vercel / reverse-proxy headers ─────────────────────────
+// Required so express-rate-limit can read X-Forwarded-For correctly.
+app.set("trust proxy", 1);
+
 // ── Security headers ─────────────────────────────────────────────
 app.use(helmet());
 
