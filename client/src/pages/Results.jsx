@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { CollapsibleCard, SeverityBadge, RiskScore, riskTone } from "../components/ReportBits.jsx";
 
@@ -9,6 +9,59 @@ const PROOFING_LABELS = {
   shall_misuse: "Shall / may misuse",
   undefined_term: "Undefined term",
 };
+
+/* ── Tiny copy-to-clipboard button with feedback ─────────────── */
+function CopyButton({ text, label = "Copy", className = "" }) {
+  const [copied, setCopied] = useState(false);
+  const copy = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Fallback for older browsers
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  }, [text]);
+
+  return (
+    <button
+      onClick={copy}
+      className={`no-print inline-flex items-center gap-1.5 text-xs font-semibold rounded-md px-2.5 py-1.5 transition-all ${
+        copied
+          ? "bg-emerald-100 text-emerald-700 border border-emerald-300"
+          : "bg-navy/5 text-navy/70 hover:bg-navy/10 hover:text-navy border border-navy/10"
+      } ${className}`}
+      title={copied ? "Copied!" : `Copy ${label.toLowerCase()}`}
+    >
+      {copied ? (
+        <>
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+          </svg>
+          Copied!
+        </>
+      ) : (
+        <>
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+            <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+          </svg>
+          {label}
+        </>
+      )}
+    </button>
+  );
+}
 
 export default function Results() {
   const report = useMemo(() => {
@@ -47,8 +100,31 @@ export default function Results() {
   const isLawyer = meta.userRole === "Lawyer";
   const highCount = clauseReview.filter((c) => Number(c.riskScore) >= 7).length;
 
+  /* ── Helpers ──────────────────────────────────────────────────── */
+  function handleDownloadPdf() {
+    window.print();
+  }
+
+  function buildAllRedlinesText() {
+    return redlines
+      .map(
+        (r, i) =>
+          `--- Redline ${i + 1} ---\n\nORIGINAL:\n${r.original}\n\nSUGGESTED REWRITE (verify with a lawyer):\n${r.suggested}\n\nReason: ${r.reason || "N/A"}`
+      )
+      .join("\n\n");
+  }
+
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 py-10 sm:py-14">
+      {/* ── Print-only header ── */}
+      <div className="print-header hidden">
+        <h2 className="text-xl font-extrabold">ContractSafe — Contract Review Report</h2>
+        <p className="text-sm text-navy/60 mt-1">
+          {meta.contractType || "Contract"} · {meta.jurisdiction || "Indian Law"} · {meta.userRole || "Reader"} · Generated{" "}
+          {meta.analyzedAt ? new Date(meta.analyzedAt).toLocaleDateString() : "today"}
+        </p>
+      </div>
+
       {/* ── Header ── */}
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
@@ -59,9 +135,21 @@ export default function Results() {
             {roleSummary.headline || "Analysis complete."}
           </h1>
         </div>
-        <Link to="/review" className="btn-secondary !py-2 text-sm shrink-0">
-          Review another
-        </Link>
+        <div className="flex items-center gap-2 shrink-0 no-print">
+          <button
+            onClick={handleDownloadPdf}
+            className="btn-secondary !py-2 text-sm inline-flex items-center gap-2"
+            title="Opens the print dialog — choose 'Save as PDF'"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            Download PDF
+          </button>
+          <Link to="/review" className="btn-secondary !py-2 text-sm shrink-0">
+            Review another
+          </Link>
+        </div>
       </div>
 
       {/* ── Stat strip ── */}
@@ -94,7 +182,7 @@ export default function Results() {
                   </div>
                   {d.excerpt && (
                     <blockquote className="mt-3 border-l-2 border-danger/50 pl-3 text-sm text-navy/70 italic">
-                      “{d.excerpt}”
+                      "{d.excerpt}"
                     </blockquote>
                   )}
                   <p className="mt-3 text-sm leading-relaxed">{d.risk}</p>
@@ -159,29 +247,44 @@ export default function Results() {
           {redlines.length === 0 ? (
             <p className="text-sm text-navy/60">No rewrites suggested.</p>
           ) : (
-            <div className="space-y-5">
-              {redlines.map((r, i) => (
-                <div key={i} className="border border-navy/15 rounded-lg overflow-hidden">
-                  <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-navy/10">
-                    <div className="p-4 bg-danger/[0.04]">
-                      <p className="text-[11px] font-bold uppercase tracking-wide text-danger">Original</p>
-                      <p className="mt-2 text-sm leading-relaxed line-through decoration-danger/50">{r.original}</p>
-                    </div>
-                    <div className="p-4 bg-emerald-50/60">
-                      <p className="text-[11px] font-bold uppercase tracking-wide text-emerald-700">
-                        Suggested rewrite — verify with a lawyer
-                      </p>
-                      <p className="mt-2 text-sm leading-relaxed">{r.suggested}</p>
-                    </div>
-                  </div>
-                  {r.reason && (
-                    <p className="px-4 py-3 text-xs text-navy/65 border-t border-navy/10 bg-navy/[0.02]">
-                      Why: {r.reason}
-                    </p>
-                  )}
+            <>
+              {/* Copy all redlines button */}
+              {redlines.length > 1 && (
+                <div className="mb-4 no-print">
+                  <CopyButton
+                    text={buildAllRedlinesText()}
+                    label="Copy all redlines"
+                    className="!text-sm !px-3 !py-2"
+                  />
                 </div>
-              ))}
-            </div>
+              )}
+              <div className="space-y-5">
+                {redlines.map((r, i) => (
+                  <div key={i} className="redline-card border border-navy/15 rounded-lg overflow-hidden">
+                    <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-navy/10">
+                      <div className="p-4 bg-danger/[0.04]">
+                        <p className="text-[11px] font-bold uppercase tracking-wide text-danger">Original</p>
+                        <p className="mt-2 text-sm leading-relaxed line-through decoration-danger/50">{r.original}</p>
+                      </div>
+                      <div className="p-4 bg-emerald-50/60">
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="text-[11px] font-bold uppercase tracking-wide text-emerald-700">
+                            Suggested rewrite — verify with a lawyer
+                          </p>
+                          <CopyButton text={r.suggested} label="Copy" />
+                        </div>
+                        <p className="mt-2 text-sm leading-relaxed">{r.suggested}</p>
+                      </div>
+                    </div>
+                    {r.reason && (
+                      <p className="px-4 py-3 text-xs text-navy/65 border-t border-navy/10 bg-navy/[0.02]">
+                        Why: {r.reason}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </>
           )}
         </CollapsibleCard>
 
@@ -221,7 +324,7 @@ export default function Results() {
               {proofingIssues.map((p, i) => (
                 <li key={i} className="text-sm">
                   <span className="font-semibold">{PROOFING_LABELS[p.type] || "Issue"}:</span>{" "}
-                  {p.excerpt && <em className="text-navy/70">“{p.excerpt}”</em>} — {p.note}
+                  {p.excerpt && <em className="text-navy/70">"{p.excerpt}"</em>} — {p.note}
                 </li>
               ))}
             </ul>

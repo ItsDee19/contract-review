@@ -50,8 +50,47 @@ export async function analyzeContract(fullPrompt) {
     throw err;
   }
 
-  const raw = result.response.text();
+  return parseGeminiJson(result.response.text());
+}
 
+/**
+ * Streaming analysis — calls Gemini for a single section prompt and returns parsed JSON.
+ * Used by the SSE route to send sections one at a time.
+ */
+export async function analyzeSection(sectionPrompt) {
+  const model = getModel();
+
+  let result;
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 60_000); // 60s timeout
+
+    result = await model.generateContent({
+      contents: [{ role: "user", parts: [{ text: sectionPrompt }] }],
+      generationConfig: {
+        responseMimeType: "application/json",
+        temperature: 0.2,
+        maxOutputTokens: 8192,
+      },
+    });
+
+    clearTimeout(timeout);
+  } catch (e) {
+    console.error("[gemini] Section call failed:", e?.message ?? e);
+    const err = new Error(`Gemini API call failed: ${e.message}`);
+    err.status = 502;
+    err.publicMessage =
+      "The AI service is temporarily unavailable or the API key is invalid. Please try again in a moment.";
+    throw err;
+  }
+
+  return parseGeminiJson(result.response.text());
+}
+
+/**
+ * Parse JSON from Gemini output, handling markdown fences and preamble text.
+ */
+function parseGeminiJson(raw) {
   // Try direct parse first (works for most models with responseMimeType json)
   try {
     return JSON.parse(raw);

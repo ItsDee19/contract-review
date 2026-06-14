@@ -6,7 +6,7 @@ export function CollapsibleCard({ title, count, accent = "navy", defaultOpen = f
   return (
     <section className="border border-navy/15 rounded-lg overflow-hidden">
       <button
-        className="w-full flex items-center justify-between gap-3 px-4 sm:px-5 py-4 text-left hover:bg-navy/[0.03]"
+        className="w-full flex items-center justify-between gap-3 px-4 sm:px-5 py-4 text-left hover:bg-navy/[0.03] no-print"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
       >
@@ -23,7 +23,22 @@ export function CollapsibleCard({ title, count, accent = "navy", defaultOpen = f
           ▾
         </span>
       </button>
-      {open && <div className="px-4 sm:px-5 pb-5 border-t border-navy/10 pt-4">{children}</div>}
+      {/* Print-only header (button above is hidden via .no-print in print CSS) */}
+      <div className="print-only items-center gap-3 px-4 sm:px-5 py-4" style={{ display: "none" }}>
+        <span className={`h-5 w-1 rounded-full shrink-0 ${accentBar}`} />
+        <span className="font-bold">{title}</span>
+        {typeof count === "number" && (
+          <span className="text-xs font-semibold text-navy/55 bg-navy/5 rounded-full px-2 py-0.5 shrink-0">
+            {count}
+          </span>
+        )}
+      </div>
+      <div
+        className={`px-4 sm:px-5 pb-5 border-t border-navy/10 pt-4 ${open ? "" : "hidden"}`}
+        data-print-expand
+      >
+        {children}
+      </div>
     </section>
   );
 }

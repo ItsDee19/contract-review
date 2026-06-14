@@ -1,10 +1,10 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { reviewContract } from "../lib/api.js";
+import { reviewContractStream } from "../lib/api.js";
 import { parsePdfInBrowser } from "../lib/pdfParser.js";
 import { parseDocxInBrowser } from "../lib/docxParser.js";
 import { SAMPLE_CONTRACT } from "../lib/sampleContract.js";
-import LoadingSteps from "../components/LoadingSteps.jsx";
+import StreamingResults from "../components/StreamingResults.jsx";
 
 const TYPES = ["NDA", "Employment", "SaaS", "Vendor", "Freelance", "Other"];
 const JURISDICTIONS = ["Indian Law", "GDPR", "Both", "Other"];
@@ -14,6 +14,7 @@ export default function Review() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const fileInputRef = useRef(null);
+  const abortRef = useRef(null);
 
   const isSample = params.get("sample") === "1";
   const [mode, setMode] = useState(isSample ? "paste" : "upload"); // upload | paste
@@ -28,8 +29,19 @@ export default function Review() {
   );
 
   const [uploading, setUploading] = useState(false);
-  const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState("");
+
+  // ── Streaming state ─────────────────────────────────────────────
+  const [streaming, setStreaming] = useState(false);
+  const [currentPhase, setCurrentPhase] = useState(null); // { phase, label }
+  const [sections, setSections] = useState({}); // { dangerZones: [...], ... }
+  const [streamMeta, setStreamMeta] = useState(null);
+  const [streamDone, setStreamDone] = useState(false);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => { abortRef.current?.(); };
+  }, []);
 
   const ACCEPTED_MIME_TYPES = [
     "application/pdf",
@@ -57,7 +69,7 @@ export default function Review() {
       file.name.toLowerCase().endsWith(".doc");
 
     if (!accepted) {
-      setError("Only PDF and Word (.docx) files are accepted. For other formats, copy the text and use “Paste text”.");
+      setError("Only PDF and Word (.docx) files are accepted. For other formats, copy the text and use \u201cPaste text\u201d.");
       return;
     }
     setUploading(true);
@@ -73,7 +85,7 @@ export default function Review() {
       } else {
         result = await parsePdfInBrowser(file);
         if (!result.text) {
-          setError("This PDF has no selectable text (it’s likely a scanned image). Paste the contract text instead.");
+          setError("This PDF has no selectable text (it\u2019s likely a scanned image). Paste the contract text instead.");
           setFileMeta(null);
           return;
         }
@@ -87,12 +99,12 @@ export default function Review() {
     } catch (e) {
       const passworded = /password/i.test(e?.message || "");
       if (isDocx(file)) {
-        setError("Couldn’t read that Word document. Make sure it’s a valid .docx file, or paste the text instead.");
+        setError("Couldn\u2019t read that Word document. Make sure it\u2019s a valid .docx file, or paste the text instead.");
       } else {
         setError(
           passworded
             ? "This PDF is password-protected. Remove the password and try again, or paste the text instead."
-            : "Couldn’t read that PDF. It may be corrupted — try re-exporting it, or paste the text instead."
+            : "Couldn\u2019t read that PDF. It may be corrupted \u2014 try re-exporting it, or paste the text instead."
         );
       }
       setFileMeta(null);
@@ -101,29 +113,75 @@ export default function Review() {
     }
   }
 
-  async function analyze() {
+  const analyze = useCallback(() => {
     setError("");
     if (!text.trim()) {
-      setError("Add a contract first — upload a PDF or paste the text.");
+      setError("Add a contract first \u2014 upload a PDF or paste the text.");
       return;
     }
-    setAnalyzing(true);
-    try {
-      const report = await reviewContract({
-        contractText: text,
-        contractType,
-        jurisdiction,
-        userRole,
-      });
-      sessionStorage.setItem("contractsafe:report", JSON.stringify(report));
-      navigate("/results");
-    } catch (e) {
-      setError(e.message);
-      setAnalyzing(false);
-    }
-  }
 
-  if (analyzing) return <LoadingSteps />;
+    // Reset streaming state
+    setStreaming(true);
+    setStreamDone(false);
+    setCurrentPhase(null);
+    setSections({});
+    setStreamMeta(null);
+
+    const abort = reviewContractStream({
+      contractText: text,
+      contractType,
+      jurisdiction,
+      userRole,
+      onPhase: (phase, label) => {
+        setCurrentPhase({ phase, label });
+      },
+      onSection: (name, data) => {
+        setSections((prev) => ({ ...prev, [name]: data }));
+      },
+      onDone: (meta, disclaimer) => {
+        setStreamMeta(meta);
+        setStreamDone(true);
+
+        // Also save to sessionStorage for the static Results page / PDF export
+        setSections((prev) => {
+          const fullReport = {
+            ...prev,
+            meta,
+            disclaimer,
+          };
+          sessionStorage.setItem("contractsafe:report", JSON.stringify(fullReport));
+          return prev;
+        });
+      },
+      onError: (message) => {
+        setError(message);
+        setStreaming(false);
+      },
+    });
+
+    abortRef.current = abort;
+  }, [text, contractType, jurisdiction, userRole]);
+
+  // ── Streaming view ──────────────────────────────────────────────
+  if (streaming) {
+    return (
+      <StreamingResults
+        sections={sections}
+        currentPhase={currentPhase}
+        done={streamDone}
+        meta={streamMeta || { contractType, jurisdiction, userRole }}
+        error={error}
+        onViewFullReport={() => navigate("/results")}
+        onCancel={() => {
+          abortRef.current?.();
+          setStreaming(false);
+          setStreamDone(false);
+          setSections({});
+          setCurrentPhase(null);
+        }}
+      />
+    );
+  }
 
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-10 sm:py-14">

@@ -55,7 +55,7 @@ export default function App() {
     <div className="min-h-screen flex flex-col">
       <ScrollToTop />
       {/* Disclaimer banner — always visible */}
-      <div className="bg-navy text-white/90 text-center text-xs sm:text-sm px-4 py-2">
+      <div className="disclaimer-banner bg-navy text-white/90 text-center text-xs sm:text-sm px-4 py-2">
         For informational use only. Not a substitute for legal advice.
       </div>
       <Navbar />

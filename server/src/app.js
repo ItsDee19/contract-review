@@ -4,6 +4,7 @@ import cors from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import reviewRouter from "./routes/review.js";
+import reviewStreamRouter from "./routes/reviewStream.js";
 import uploadRouter from "./routes/upload.js";
 
 const app = express();
@@ -44,6 +45,7 @@ app.get("/api/health", (_req, res) => {
   res.json({ ok: true, service: "contractsafe-api" });
 });
 
+app.use("/api/review/stream", reviewLimiter, reviewStreamRouter);
 app.use("/api/review", reviewLimiter, reviewRouter);
 app.use("/api/upload", uploadLimiter, uploadRouter);
 
