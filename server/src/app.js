@@ -20,7 +20,17 @@ app.use(helmet());
 const ALLOWED_ORIGINS = process.env.CORS_ORIGINS
   ? process.env.CORS_ORIGINS.split(",").map((o) => o.trim())
   : ["http://localhost:5173"];
-app.use(cors({ origin: ALLOWED_ORIGINS }));
+
+if (process.env.NODE_ENV === "production" && !process.env.CORS_ORIGINS) {
+  console.warn(
+    "⚠  CORS_ORIGINS is not set. Defaulting to localhost — set CORS_ORIGINS to your deployed frontend URL in production."
+  );
+}
+
+app.use(cors({
+  origin: ALLOWED_ORIGINS,
+  credentials: false, // No cookies/sessions used — explicit for clarity
+}));
 
 app.use(express.json({ limit: "10mb" }));
 

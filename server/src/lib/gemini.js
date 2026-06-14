@@ -2,6 +2,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 
 let _model = null;
 let _lastKey = null;
+let _lastModel = null;
 
 function getModel() {
   if (!process.env.GEMINI_API_KEY) {
@@ -11,15 +12,28 @@ function getModel() {
       "Server is not configured with a Gemini API key. Add GEMINI_API_KEY to server/.env (free key: https://aistudio.google.com/app/apikey).";
     throw err;
   }
-  // Re-instantiate if the key or model has changed (e.g. between hot-reloads)
+  // Re-instantiate if the key OR model name has changed (e.g. between hot-reloads)
   const modelName = process.env.GEMINI_MODEL || "gemini-2.0-flash-lite";
-  if (!_model || _lastKey !== process.env.GEMINI_API_KEY) {
+  if (!_model || _lastKey !== process.env.GEMINI_API_KEY || _lastModel !== modelName) {
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
     _model = genAI.getGenerativeModel({ model: modelName });
     _lastKey = process.env.GEMINI_API_KEY;
+    _lastModel = modelName;
     console.log(`[gemini] Using model: ${modelName}`);
   }
   return _model;
+}
+
+/** Rejects after `ms` milliseconds — used to race against Gemini calls. */
+function timeout(ms) {
+  return new Promise((_, reject) =>
+    setTimeout(() => {
+      const err = new Error(`Gemini API call timed out after ${ms / 1000}s`);
+      err.status = 504;
+      err.publicMessage = "The AI took too long to respond. Please try again.";
+      reject(err);
+    }, ms)
+  );
 }
 
 /**
@@ -62,21 +76,22 @@ export async function analyzeSection(sectionPrompt) {
 
   let result;
   try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 60_000); // 60s timeout
-
-    result = await model.generateContent({
-      contents: [{ role: "user", parts: [{ text: sectionPrompt }] }],
-      generationConfig: {
-        responseMimeType: "application/json",
-        temperature: 0.2,
-        maxOutputTokens: 8192,
-      },
-    });
-
-    clearTimeout(timeout);
+    // Race the Gemini call against a 60-second timeout.
+    result = await Promise.race([
+      model.generateContent({
+        contents: [{ role: "user", parts: [{ text: sectionPrompt }] }],
+        generationConfig: {
+          responseMimeType: "application/json",
+          temperature: 0.2,
+          maxOutputTokens: 8192,
+        },
+      }),
+      timeout(60_000),
+    ]);
   } catch (e) {
     console.error("[gemini] Section call failed:", e?.message ?? e);
+    // Re-throw structured errors (e.g. from our timeout()) directly.
+    if (e.publicMessage) throw e;
     const err = new Error(`Gemini API call failed: ${e.message}`);
     err.status = 502;
     err.publicMessage =

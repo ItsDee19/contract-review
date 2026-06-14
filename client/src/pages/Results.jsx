@@ -182,7 +182,7 @@ export default function Results() {
                   </div>
                   {d.excerpt && (
                     <blockquote className="mt-3 border-l-2 border-danger/50 pl-3 text-sm text-navy/70 italic">
-                      "{d.excerpt}"
+                      &ldquo;{d.excerpt}&rdquo;
                     </blockquote>
                   )}
                   <p className="mt-3 text-sm leading-relaxed">{d.risk}</p>
@@ -324,7 +324,7 @@ export default function Results() {
               {proofingIssues.map((p, i) => (
                 <li key={i} className="text-sm">
                   <span className="font-semibold">{PROOFING_LABELS[p.type] || "Issue"}:</span>{" "}
-                  {p.excerpt && <em className="text-navy/70">"{p.excerpt}"</em>} — {p.note}
+                  {p.excerpt && <em className="text-navy/70">&ldquo;{p.excerpt}&rdquo;</em>} — {p.note}
                 </li>
               ))}
             </ul>

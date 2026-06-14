@@ -79,41 +79,36 @@ export function reviewContractStream({
 
         buffer += decoder.decode(value, { stream: true });
 
-        // Parse SSE: each event is "data: {...}\n\n"
-        const lines = buffer.split("\n");
-        buffer = "";
+        // SSE events are separated by double newlines: "data: {...}\n\n"
+        // Split on double newlines and keep any incomplete trailing chunk in buffer.
+        const events = buffer.split("\n\n");
+        buffer = events.pop() ?? ""; // last element may be incomplete
 
-        for (let i = 0; i < lines.length; i++) {
-          const line = lines[i];
+        for (const event of events) {
+          // Each event may have multiple lines; find the "data: " line.
+          for (const line of event.split("\n")) {
+            if (!line.startsWith("data: ")) continue;
 
-          // Incomplete line — push back to buffer
-          if (i === lines.length - 1 && !line.endsWith("")) {
-            buffer = line;
-            continue;
-          }
+            try {
+              const payload = JSON.parse(line.slice(6));
 
-          // Skip keepalive comments and empty lines
-          if (!line.startsWith("data: ")) continue;
-
-          try {
-            const payload = JSON.parse(line.slice(6));
-
-            switch (payload.type) {
-              case "phase":
-                onPhase?.(payload.phase, payload.label);
-                break;
-              case "section":
-                onSection?.(payload.name, payload.data);
-                break;
-              case "done":
-                onDone?.(payload.meta, payload.disclaimer);
-                break;
-              case "error":
-                onError?.(payload.message);
-                break;
+              switch (payload.type) {
+                case "phase":
+                  onPhase?.(payload.phase, payload.label);
+                  break;
+                case "section":
+                  onSection?.(payload.name, payload.data);
+                  break;
+                case "done":
+                  onDone?.(payload.meta, payload.disclaimer);
+                  break;
+                case "error":
+                  onError?.(payload.message);
+                  break;
+              }
+            } catch {
+              // Skip unparseable lines (keepalive comments, etc.)
             }
-          } catch {
-            // Skip unparseable lines (keepalive comments, etc.)
           }
         }
       }

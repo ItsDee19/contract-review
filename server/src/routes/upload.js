@@ -32,9 +32,9 @@ router.post("/", upload.single("file"), async (req, res, next) => {
         .json({ error: "No file received. Attach a PDF or Word document under the field name 'file'." });
     }
 
-    const isPdf =
-      req.file.mimetype === "application/pdf" ||
-      req.file.originalname.toLowerCase().endsWith(".pdf");
+    // Trust the MIME type validated by multer — don't use filename extension as fallback.
+    // The fileFilter above already rejected non-PDF/non-docx MIME types.
+    const isPdf = req.file.mimetype === "application/pdf";
 
     let result;
     try {
