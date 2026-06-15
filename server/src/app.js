@@ -6,6 +6,8 @@ import rateLimit from "express-rate-limit";
 import reviewRouter from "./routes/review.js";
 import reviewStreamRouter from "./routes/reviewStream.js";
 import uploadRouter from "./routes/upload.js";
+import { makeAccessGuard } from "./middleware/accessGuard.js";
+import { makeRateLimitStore } from "./lib/rateLimitStore.js";
 
 const app = express();
 
@@ -35,12 +37,20 @@ app.use(cors({
 app.use(express.json({ limit: "10mb" }));
 
 // ── Rate limiters ────────────────────────────────────────────────
+// Backed by Redis when REDIS_URL is set (shared across instances), otherwise
+// the in-memory store (correct only for a single instance — see rateLimitStore.js).
+const [uploadStore, reviewStore] = await Promise.all([
+  makeRateLimitStore("upload"),
+  makeRateLimitStore("review"),
+]);
+
 const uploadLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 30,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Too many uploads. Please wait a few minutes." },
+  ...(uploadStore ? { store: uploadStore } : {}),
 });
 
 const reviewLimiter = rateLimit({
@@ -49,15 +59,19 @@ const reviewLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Too many review requests. Please wait a few minutes." },
+  ...(reviewStore ? { store: reviewStore } : {}),
 });
+
+// ── Access guard (token + origin enforcement) for expensive routes ──
+const accessGuard = makeAccessGuard(ALLOWED_ORIGINS);
 
 app.get("/api/health", (_req, res) => {
   res.json({ ok: true, service: "contractsafe-api" });
 });
 
-app.use("/api/review/stream", reviewLimiter, reviewStreamRouter);
-app.use("/api/review", reviewLimiter, reviewRouter);
-app.use("/api/upload", uploadLimiter, uploadRouter);
+app.use("/api/review/stream", reviewLimiter, accessGuard, reviewStreamRouter);
+app.use("/api/review", reviewLimiter, accessGuard, reviewRouter);
+app.use("/api/upload", uploadLimiter, accessGuard, uploadRouter);
 
 // Central error handler — keeps multer & route errors consistent
 app.use((err, _req, res, _next) => {
