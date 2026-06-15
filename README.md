@@ -84,9 +84,15 @@ Returns the full report JSON (`dangerZones`, `clauseReview`, `complianceFlags`, 
 |---|---|---|---|
 | `GEMINI_API_KEY` | `server/.env` | ✅ | Google Gemini API key — https://aistudio.google.com/app/apikey |
 | `PORT` | `server/.env` | optional | API port (default `3001`) |
+| `CORS_ORIGINS` | `server/.env` | prod only | Comma-separated allowed frontend origins. Also enforced server-side (disallowed origins get 403). |
+| `API_ACCESS_TOKEN` | `server/.env` | optional | Shared secret for `/api/review*` and `/api/upload`. When set, clients must send it as the `x-api-token` header — the only control that stops curl/scripts from burning your Gemini quota. Leave unset for an open public demo. |
+| `REDIS_URL` | `server/.env` | optional | Redis connection string to share rate-limit counters across multiple instances (Vercel functions / Railway replicas). Without it, each instance counts independently. |
 | `VITE_API_URL` | client env (deploy only) | prod only | Full URL of the deployed backend, e.g. `https://your-api.up.railway.app`. Leave unset in dev — Vite proxies `/api` automatically. |
+| `VITE_API_TOKEN` | client env (deploy only) | optional | Must match the server's `API_ACCESS_TOKEN` when the API is locked down. Sent as the `x-api-token` header. |
 
 `.env` is git-ignored; only `.env.example` is committed. Never hardcode keys.
+
+> **Note on `VITE_API_TOKEN`:** anything baked into a Vite frontend is publicly visible in the shipped JS — this token only keeps casual scripts and other origins out, it is not a true secret. For a hard guarantee against quota abuse, put the backend behind real auth or a server-side proxy.
 
 ## Deploy
 

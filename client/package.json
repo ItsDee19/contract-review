@@ -20,5 +20,11 @@
     "react-router-dom": "^6.26.0",
     "tailwindcss": "^3.4.7",
     "vite": "^5.3.5"
+  },
+  "comments": {
+    "overrides": "Force esbuild to the patched 0.25.x line. Vite 5's range (^0.21.3) pulls a build with GHSA-67mh-4wv8-2f99 (dev-server request leak); 0.25 fixes it and is the highest line Vite 5 can build with (0.28 breaks Vite 5's transform API). The non-override fix is Vite 7/8, which require Node >=20.19 — bump Node and Vite to clear the remaining Deno-only advisory (GHSA-gv7w-rqvm-qjhr), which is not exploitable in this npm/Node project."
+  },
+  "overrides": {
+    "esbuild": "^0.25.0"
   }
 }

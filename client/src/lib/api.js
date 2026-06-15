@@ -2,6 +2,14 @@
 // In production set VITE_API_URL (e.g. https://your-api.up.railway.app).
 const BASE = import.meta.env.VITE_API_URL || "";
 
+// Optional shared-secret token. Set VITE_API_TOKEN to the same value as the
+// server's API_ACCESS_TOKEN when the API is locked down; leave unset otherwise.
+const API_TOKEN = import.meta.env.VITE_API_TOKEN || "";
+
+function withToken(headers = {}) {
+  return API_TOKEN ? { ...headers, "x-api-token": API_TOKEN } : headers;
+}
+
 async function handle(res) {
   let body = null;
   try {
@@ -18,14 +26,14 @@ async function handle(res) {
 export async function uploadPdf(file) {
   const form = new FormData();
   form.append("file", file);
-  const res = await fetch(`${BASE}/api/upload`, { method: "POST", body: form });
+  const res = await fetch(`${BASE}/api/upload`, { method: "POST", body: form, headers: withToken() });
   return handle(res);
 }
 
 export async function reviewContract({ contractText, contractType, jurisdiction, userRole }) {
   const res = await fetch(`${BASE}/api/review`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: withToken({ "Content-Type": "application/json" }),
     body: JSON.stringify({ contractText, contractType, jurisdiction, userRole }),
   });
   return handle(res);
@@ -58,7 +66,7 @@ export function reviewContractStream({
     try {
       const res = await fetch(`${BASE}/api/review/stream`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: withToken({ "Content-Type": "application/json" }),
         body: JSON.stringify({ contractText, contractType, jurisdiction, userRole }),
         signal: controller.signal,
       });
