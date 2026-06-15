@@ -62,8 +62,9 @@ const reviewLimiter = rateLimit({
   ...(reviewStore ? { store: reviewStore } : {}),
 });
 
-// ── Access guard (token + origin enforcement) for expensive routes ──
-const accessGuard = makeAccessGuard(ALLOWED_ORIGINS);
+// ── Access guard (optional shared-secret token) for expensive routes ──
+// Browser origin restriction is handled by CORS above.
+const accessGuard = makeAccessGuard();
 
 app.get("/api/health", (_req, res) => {
   res.json({ ok: true, service: "contractsafe-api" });

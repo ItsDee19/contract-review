@@ -1,24 +1,18 @@
 // Defense-in-depth for the expensive (Gemini-cost) endpoints.
 //
 // CORS only constrains *browsers* — it does nothing against curl, scripts, or
-// bots that hit the API directly. These checks run server-side and actually
-// refuse to do the work, rather than just hiding the response from a browser.
+// bots that hit the API directly. The shared-secret token below is the control
+// that actually blocks non-browser clients: set API_ACCESS_TOKEN if Gemini cost
+// matters and clients must then send a matching `x-api-token` header.
 //
-//   1. Optional shared-secret token (API_ACCESS_TOKEN). When set, every request
-//      to a guarded route must send a matching `x-api-token` header. This is the
-//      only control that genuinely blocks non-browser clients — set it if Gemini
-//      cost matters. Leave it unset for an open public demo (behaviour unchanged).
-//
-//   2. Origin allow-list enforcement. If a browser sends an Origin that isn't in
-//      the allow-list we reject with 403 (CORS alone would still execute the
-//      request and only block the browser from reading the reply).
+// Browser origin restriction is left entirely to CORS (configured in app.js).
+// We deliberately do NOT re-check the Origin header here: an allow-list adds no
+// protection against curl/scripts (they can omit or spoof Origin), and enforcing
+// it server-side wrongly rejected legitimate same-origin requests proxied
+// through the Vite dev server (e.g. when Vite runs on a non-default port).
 
-/**
- * @param {string[]} allowedOrigins - same list used for CORS.
- */
-export function makeAccessGuard(allowedOrigins) {
+export function makeAccessGuard() {
   const token = process.env.API_ACCESS_TOKEN;
-  const allow = new Set(allowedOrigins);
 
   if (!token) {
     console.warn(
@@ -27,21 +21,12 @@ export function makeAccessGuard(allowedOrigins) {
   }
 
   return function accessGuard(req, res, next) {
-    // 1) Shared-secret token (timing-safe-ish constant comparison is overkill
-    //    here; a leaked token is the real risk, not timing).
     if (token) {
       const provided = req.get("x-api-token");
       if (!provided || provided !== token) {
         return res.status(401).json({ error: "Unauthorized. A valid API token is required." });
       }
     }
-
-    // 2) Reject browser requests from disallowed origins outright.
-    const origin = req.get("origin");
-    if (origin && !allow.has(origin)) {
-      return res.status(403).json({ error: "Origin not allowed." });
-    }
-
     next();
   };
 }
