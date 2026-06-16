@@ -1,6 +1,16 @@
 import { useMemo, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
-import { CollapsibleCard, SeverityBadge, RiskScore, riskTone } from "../components/ReportBits.jsx";
+import {
+  CollapsibleCard,
+  SeverityBadge,
+  RiskScore,
+  riskTone,
+  RiskVerdict,
+  DealSnapshot,
+  MissingClausesBody,
+  NegotiationBody,
+  ObligationsBody,
+} from "../components/ReportBits.jsx";
 
 const PROOFING_LABELS = {
   vague_language: "Vague language",
@@ -87,10 +97,15 @@ export default function Results() {
   }
 
   const {
+    dealSummary = {},
+    overallRisk = null,
     dangerZones = [],
+    missingClauses = [],
     clauseReview = [],
     complianceFlags = [],
     redlines = [],
+    negotiationPlaybook = [],
+    obligations = [],
     roleSummary = {},
     proofingIssues = [],
     disclaimer,
@@ -152,10 +167,18 @@ export default function Results() {
         </div>
       </div>
 
+      {/* ── Overall risk verdict ── */}
+      {overallRisk && (
+        <div className="mt-6">
+          <RiskVerdict overallRisk={overallRisk} />
+        </div>
+      )}
+
       {/* ── Stat strip ── */}
-      <div className="mt-6 grid grid-cols-2 sm:grid-cols-4 border border-navy/15 rounded-lg divide-x divide-y sm:divide-y-0 divide-navy/10 overflow-hidden text-center">
+      <div className="mt-6 grid grid-cols-2 sm:grid-cols-5 border border-navy/15 rounded-lg divide-x divide-y sm:divide-y-0 divide-navy/10 overflow-hidden text-center">
         {[
           [dangerZones.length, "Danger zones", dangerZones.length ? "text-danger" : ""],
+          [missingClauses.length, "Missing protections", missingClauses.length ? "text-amber-600" : ""],
           [highCount, "High-risk clauses", highCount ? "text-danger" : ""],
           [complianceFlags.length, "Compliance flags", complianceFlags.length ? "text-amber-600" : ""],
           [proofingIssues.length, "Drafting issues", ""],
@@ -168,6 +191,37 @@ export default function Results() {
       </div>
 
       <div className="mt-8 space-y-4">
+        {/* ── Deal snapshot ── */}
+        <CollapsibleCard title="Deal snapshot" defaultOpen>
+          <DealSnapshot dealSummary={dealSummary} />
+        </CollapsibleCard>
+
+        {/* ── Are you protected? / Counsel's summary ── */}
+        <CollapsibleCard title={isLawyer ? "Counsel's summary" : "Are you protected?"} defaultOpen>
+          {roleSummary.protectedChecklist?.length > 0 && (
+            <ul className="space-y-2">
+              {roleSummary.protectedChecklist.map((item, i) => {
+                const bad = item.trim().startsWith("✘") || item.trim().toLowerCase().startsWith("no");
+                return (
+                  <li key={i} className={`text-sm leading-relaxed flex gap-2 ${bad ? "text-danger" : ""}`}>
+                    <span className="shrink-0">{bad ? "✘" : "✔"}</span>
+                    <span>{item.replace(/^[✔✘]\s*/, "")}</span>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          {isLawyer && roleSummary.lawyerNotes && (
+            <div className="mt-4 border-t border-navy/10 pt-4">
+              <p className="text-[11px] font-bold uppercase tracking-wide text-navy/50">Statutory & case-law notes</p>
+              <p className="mt-2 text-sm leading-relaxed whitespace-pre-line">{roleSummary.lawyerNotes}</p>
+            </div>
+          )}
+          {!roleSummary.protectedChecklist?.length && !roleSummary.lawyerNotes && (
+            <p className="text-sm text-navy/60">No summary available for this document.</p>
+          )}
+        </CollapsibleCard>
+
         {/* ── 1. Danger zones ── */}
         <CollapsibleCard title="Danger zones" count={dangerZones.length} accent="danger" defaultOpen>
           {dangerZones.length === 0 ? (
@@ -190,6 +244,11 @@ export default function Results() {
               ))}
             </ol>
           )}
+        </CollapsibleCard>
+
+        {/* ── Missing protections (omission detection) ── */}
+        <CollapsibleCard title="Missing protections" count={missingClauses.length} accent="danger" defaultOpen>
+          <MissingClausesBody items={missingClauses} />
         </CollapsibleCard>
 
         {/* ── 2. Clause by clause ── */}
@@ -288,33 +347,14 @@ export default function Results() {
           )}
         </CollapsibleCard>
 
-        {/* ── 5. Role summary ── */}
-        <CollapsibleCard
-          title={isLawyer ? "Counsel's summary" : "Are you protected?"}
-          defaultOpen
-        >
-          {roleSummary.protectedChecklist?.length > 0 && (
-            <ul className="space-y-2">
-              {roleSummary.protectedChecklist.map((item, i) => {
-                const bad = item.trim().startsWith("✘") || item.trim().toLowerCase().startsWith("no");
-                return (
-                  <li key={i} className={`text-sm leading-relaxed flex gap-2 ${bad ? "text-danger" : ""}`}>
-                    <span className="shrink-0">{bad ? "✘" : "✔"}</span>
-                    <span>{item.replace(/^[✔✘]\s*/, "")}</span>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-          {isLawyer && roleSummary.lawyerNotes && (
-            <div className="mt-4 border-t border-navy/10 pt-4">
-              <p className="text-[11px] font-bold uppercase tracking-wide text-navy/50">Statutory & case-law notes</p>
-              <p className="mt-2 text-sm leading-relaxed whitespace-pre-line">{roleSummary.lawyerNotes}</p>
-            </div>
-          )}
-          {!roleSummary.protectedChecklist?.length && !roleSummary.lawyerNotes && (
-            <p className="text-sm text-navy/60">No summary available for this document.</p>
-          )}
+        {/* ── Negotiation playbook ── */}
+        <CollapsibleCard title="Negotiation playbook" count={negotiationPlaybook.length}>
+          <NegotiationBody items={negotiationPlaybook} />
+        </CollapsibleCard>
+
+        {/* ── Obligations & key dates ── */}
+        <CollapsibleCard title="Obligations & key dates" count={obligations.length}>
+          <ObligationsBody items={obligations} />
         </CollapsibleCard>
 
         {/* ── Proofing sweep (quiet, last) ── */}

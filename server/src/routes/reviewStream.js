@@ -1,5 +1,10 @@
 import { Router } from "express";
-import { DISCLAIMER, buildPhase1Prompt, buildPhase2Prompt, buildPhase3Prompt } from "../lib/prompt.js";
+import {
+  DISCLAIMER,
+  buildPhase1Prompt,
+  buildPhase2Prompt,
+  buildPhase3Prompt,
+} from "../lib/prompt.js";
 import { analyzeSection } from "../lib/gemini.js";
 
 const router = Router();
@@ -76,11 +81,21 @@ router.post("/", async (req, res) => {
   const phases = [
     {
       id: 1,
-      label: "Scanning for danger zones…",
+      label: "Building the briefing: snapshot, verdict, dangers & gaps…",
       build: buildPhase1Prompt,
-      keys: ["dangerZones", "roleSummary"],
+      keys: ["dealSummary", "overallRisk", "roleSummary", "dangerZones", "missingClauses"],
       normalise: (parsed) => ({
-        dangerZones: Array.isArray(parsed.dangerZones) ? parsed.dangerZones : [],
+        dealSummary: {
+          parties: Array.isArray(parsed.dealSummary?.parties) ? parsed.dealSummary.parties : [],
+          snapshot: Array.isArray(parsed.dealSummary?.snapshot) ? parsed.dealSummary.snapshot : [],
+        },
+        overallRisk: {
+          score: Number.isFinite(Number(parsed.overallRisk?.score))
+            ? Math.min(100, Math.max(0, Number(parsed.overallRisk.score)))
+            : null,
+          verdict: parsed.overallRisk?.verdict || "Needs review",
+          rationale: parsed.overallRisk?.rationale || "",
+        },
         roleSummary: {
           headline: parsed.roleSummary?.headline || "Analysis complete.",
           protectedChecklist: Array.isArray(parsed.roleSummary?.protectedChecklist)
@@ -88,11 +103,13 @@ router.post("/", async (req, res) => {
             : [],
           lawyerNotes: parsed.roleSummary?.lawyerNotes || "",
         },
+        dangerZones: Array.isArray(parsed.dangerZones) ? parsed.dangerZones : [],
+        missingClauses: Array.isArray(parsed.missingClauses) ? parsed.missingClauses : [],
       }),
     },
     {
       id: 2,
-      label: "Reviewing every clause…",
+      label: "Reviewing every clause against the statutes…",
       build: buildPhase2Prompt,
       keys: ["clauseReview", "complianceFlags"],
       normalise: (parsed) => ({
@@ -102,11 +119,13 @@ router.post("/", async (req, res) => {
     },
     {
       id: 3,
-      label: "Writing redlines & proofing…",
+      label: "Drafting the action plan: redlines, negotiation & obligations…",
       build: buildPhase3Prompt,
-      keys: ["redlines", "proofingIssues"],
+      keys: ["redlines", "negotiationPlaybook", "obligations", "proofingIssues"],
       normalise: (parsed) => ({
         redlines: Array.isArray(parsed.redlines) ? parsed.redlines : [],
+        negotiationPlaybook: Array.isArray(parsed.negotiationPlaybook) ? parsed.negotiationPlaybook : [],
+        obligations: Array.isArray(parsed.obligations) ? parsed.obligations : [],
         proofingIssues: Array.isArray(parsed.proofingIssues) ? parsed.proofingIssues : [],
       }),
     },

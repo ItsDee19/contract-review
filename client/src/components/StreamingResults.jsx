@@ -1,5 +1,15 @@
 import { useMemo } from "react";
-import { CollapsibleCard, SeverityBadge, RiskScore, riskTone } from "./ReportBits.jsx";
+import {
+  CollapsibleCard,
+  SeverityBadge,
+  RiskScore,
+  riskTone,
+  RiskVerdict,
+  DealSnapshot,
+  MissingClausesBody,
+  NegotiationBody,
+  ObligationsBody,
+} from "./ReportBits.jsx";
 
 const PROOFING_LABELS = {
   vague_language: "Vague language",
@@ -11,9 +21,9 @@ const PROOFING_LABELS = {
 
 /* ── Phase progress indicator ──────────────────────────────────── */
 const PHASES = [
-  { id: 1, label: "Danger zones & verdict", icon: "🛡️" },
-  { id: 2, label: "Clause review & compliance", icon: "📋" },
-  { id: 3, label: "Redlines & proofing", icon: "✏️" },
+  { id: 1, label: "Briefing & danger zones", icon: "🧭" },
+  { id: 2, label: "Clauses & compliance", icon: "📋" },
+  { id: 3, label: "Redlines & action plan", icon: "✏️" },
 ];
 
 function PhaseTracker({ currentPhase, done }) {
@@ -98,11 +108,16 @@ export default function StreamingResults({
   onCancel,
 }) {
   const {
+    dealSummary,
+    overallRisk,
     dangerZones,
+    missingClauses,
     roleSummary,
     clauseReview,
     complianceFlags,
     redlines,
+    negotiationPlaybook,
+    obligations,
     proofingIssues,
   } = sections;
 
@@ -176,13 +191,34 @@ export default function StreamingResults({
         </div>
       </FadeIn>
 
+      {/* ── Overall risk verdict banner ── */}
+      <FadeIn show={!!overallRisk}>
+        <div className="mb-6">
+          <RiskVerdict overallRisk={overallRisk} />
+        </div>
+      </FadeIn>
+
+      {/* ── Deal snapshot ── */}
+      <FadeIn show={!!dealSummary}>
+        <div className="mb-6">
+          <CollapsibleCard title="Deal snapshot" defaultOpen>
+            <DealSnapshot dealSummary={dealSummary} />
+          </CollapsibleCard>
+        </div>
+      </FadeIn>
+
       {/* ── Stat strip (builds progressively) ── */}
       {sectionCount > 0 && (
-        <div className="mb-8 grid grid-cols-2 sm:grid-cols-4 border border-navy/15 rounded-lg divide-x divide-y sm:divide-y-0 divide-navy/10 overflow-hidden text-center">
+        <div className="mb-8 grid grid-cols-2 sm:grid-cols-5 border border-navy/15 rounded-lg divide-x divide-y sm:divide-y-0 divide-navy/10 overflow-hidden text-center">
           <StatCell
             n={dangerZones?.length}
             label="Danger zones"
             tone={dangerZones?.length ? "text-danger" : ""}
+          />
+          <StatCell
+            n={missingClauses?.length}
+            label="Missing protections"
+            tone={missingClauses?.length ? "text-amber-600" : ""}
           />
           <StatCell
             n={clauseReview ? highCount : undefined}
@@ -203,33 +239,7 @@ export default function StreamingResults({
       )}
 
       <div className="space-y-4">
-        {/* ── 1. Danger zones ── */}
-        <FadeIn show={!!dangerZones}>
-          <CollapsibleCard title="Danger zones" count={dangerZones?.length} accent="danger" defaultOpen>
-            {!dangerZones?.length ? (
-              <p className="text-sm text-navy/60">No standout danger zones found. Still read the clause-by-clause review below.</p>
-            ) : (
-              <ol className="space-y-4">
-                {dangerZones.map((d, i) => (
-                  <li key={i} className="border border-danger/25 rounded-lg p-4 bg-danger/[0.03]">
-                    <div className="flex flex-wrap items-center gap-2 justify-between">
-                      <h3 className="font-bold">{i + 1}. {d.title}</h3>
-                      <SeverityBadge severity={d.severity} />
-                    </div>
-                    {d.excerpt && (
-                      <blockquote className="mt-3 border-l-2 border-danger/50 pl-3 text-sm text-navy/70 italic">
-                        &ldquo;{d.excerpt}&rdquo;
-                      </blockquote>
-                    )}
-                    <p className="mt-3 text-sm leading-relaxed">{d.risk}</p>
-                  </li>
-                ))}
-              </ol>
-            )}
-          </CollapsibleCard>
-        </FadeIn>
-
-        {/* ── 5. Role summary (arrives with phase 1) ── */}
+        {/* ── Role summary (arrives with phase 1) ── */}
         <FadeIn show={!!roleSummary}>
           <CollapsibleCard
             title={isLawyer ? "Counsel's summary" : "Are you protected?"}
@@ -260,9 +270,42 @@ export default function StreamingResults({
           </CollapsibleCard>
         </FadeIn>
 
+        {/* ── Danger zones ── */}
+        <FadeIn show={!!dangerZones}>
+          <CollapsibleCard title="Danger zones" count={dangerZones?.length} accent="danger" defaultOpen>
+            {!dangerZones?.length ? (
+              <p className="text-sm text-navy/60">No standout danger zones found. Still read the clause-by-clause review below.</p>
+            ) : (
+              <ol className="space-y-4">
+                {dangerZones.map((d, i) => (
+                  <li key={i} className="border border-danger/25 rounded-lg p-4 bg-danger/[0.03]">
+                    <div className="flex flex-wrap items-center gap-2 justify-between">
+                      <h3 className="font-bold">{i + 1}. {d.title}</h3>
+                      <SeverityBadge severity={d.severity} />
+                    </div>
+                    {d.excerpt && (
+                      <blockquote className="mt-3 border-l-2 border-danger/50 pl-3 text-sm text-navy/70 italic">
+                        &ldquo;{d.excerpt}&rdquo;
+                      </blockquote>
+                    )}
+                    <p className="mt-3 text-sm leading-relaxed">{d.risk}</p>
+                  </li>
+                ))}
+              </ol>
+            )}
+          </CollapsibleCard>
+        </FadeIn>
+
+        {/* ── Missing protections (omission detection) ── */}
+        <FadeIn show={!!missingClauses}>
+          <CollapsibleCard title="Missing protections" count={missingClauses?.length} accent="danger" defaultOpen>
+            <MissingClausesBody items={missingClauses} />
+          </CollapsibleCard>
+        </FadeIn>
+
         {/* ── Phase 2 loading skeleton ── */}
         {!clauseReview && currentPhase?.phase >= 2 && !done && (
-          <SkeletonCard label="Analyzing every clause…" />
+          <SkeletonCard label="Analyzing every clause against the statutes…" />
         )}
 
         {/* ── 2. Clause by clause ── */}
@@ -321,10 +364,10 @@ export default function StreamingResults({
 
         {/* ── Phase 3 loading skeleton ── */}
         {!redlines && currentPhase?.phase >= 3 && !done && (
-          <SkeletonCard label="Writing suggested rewrites…" />
+          <SkeletonCard label="Writing redlines, negotiation strategy & obligations…" />
         )}
 
-        {/* ── 4. Redlines ── */}
+        {/* ── Redlines ── */}
         <FadeIn show={!!redlines}>
           <CollapsibleCard title="Redlined version" count={redlines?.length}>
             {!redlines?.length ? (
@@ -357,7 +400,21 @@ export default function StreamingResults({
           </CollapsibleCard>
         </FadeIn>
 
-        {/* ── 6. Proofing issues ── */}
+        {/* ── Negotiation playbook ── */}
+        <FadeIn show={!!negotiationPlaybook}>
+          <CollapsibleCard title="Negotiation playbook" count={negotiationPlaybook?.length}>
+            <NegotiationBody items={negotiationPlaybook} />
+          </CollapsibleCard>
+        </FadeIn>
+
+        {/* ── Obligations & key dates ── */}
+        <FadeIn show={!!obligations}>
+          <CollapsibleCard title="Obligations & key dates" count={obligations?.length}>
+            <ObligationsBody items={obligations} />
+          </CollapsibleCard>
+        </FadeIn>
+
+        {/* ── Proofing issues ── */}
         <FadeIn show={proofingIssues?.length > 0}>
           <CollapsibleCard title="Drafting & proofing issues" count={proofingIssues?.length}>
             <ul className="space-y-3">

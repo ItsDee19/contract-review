@@ -46,10 +46,24 @@ router.post("/", async (req, res, next) => {
 
     // ── Normalise so the frontend can always render safely ───────
     const safe = {
+      dealSummary: {
+        parties: Array.isArray(parsed.dealSummary?.parties) ? parsed.dealSummary.parties : [],
+        snapshot: Array.isArray(parsed.dealSummary?.snapshot) ? parsed.dealSummary.snapshot : [],
+      },
+      overallRisk: {
+        score: Number.isFinite(Number(parsed.overallRisk?.score))
+          ? Math.min(100, Math.max(0, Number(parsed.overallRisk.score)))
+          : null,
+        verdict: parsed.overallRisk?.verdict || "Needs review",
+        rationale: parsed.overallRisk?.rationale || "",
+      },
       dangerZones: Array.isArray(parsed.dangerZones) ? parsed.dangerZones : [],
+      missingClauses: Array.isArray(parsed.missingClauses) ? parsed.missingClauses : [],
       clauseReview: Array.isArray(parsed.clauseReview) ? parsed.clauseReview : [],
       complianceFlags: Array.isArray(parsed.complianceFlags) ? parsed.complianceFlags : [],
       redlines: Array.isArray(parsed.redlines) ? parsed.redlines : [],
+      negotiationPlaybook: Array.isArray(parsed.negotiationPlaybook) ? parsed.negotiationPlaybook : [],
+      obligations: Array.isArray(parsed.obligations) ? parsed.obligations : [],
       roleSummary: {
         headline: parsed.roleSummary?.headline || "Analysis complete.",
         protectedChecklist: Array.isArray(parsed.roleSummary?.protectedChecklist)
