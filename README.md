@@ -1,6 +1,6 @@
 # ContractSafe
 
-AI contract review built specifically for Indian law. Upload a PDF (or paste text) and get danger zones, a clause-by-clause risk map, compliance flags against Indian statutes, ready-to-paste redlines, and a verdict written for your role — lawyer, founder, HR manager, or freelancer.
+AI contract review built specifically for Indian law, modelled on how a diligent junior associate actually reviews an agreement. Upload a PDF (or paste text) and get a risk verdict, a deal snapshot, danger zones, the protections you're **missing**, a clause-by-clause risk map, compliance flags across 25+ Indian statutes (applied by contract type), ready-to-paste redlines, a negotiation playbook, and an obligations/deadlines matrix — all written for your role: lawyer, founder, HR manager, or freelancer.
 
 > **For informational use only. Not a substitute for legal advice.** Always consult a qualified advocate before signing.
 
@@ -12,21 +12,34 @@ AI contract review built specifically for Indian law. Upload a PDF (or paste tex
 |---|---|
 | Frontend | React 18 + Vite + Tailwind CSS |
 | Backend | Node.js + Express |
-| AI | **Google Gemini 1.5 Flash** (free tier) via `@google/generative-ai` |
+| AI | **Google Gemini** (model set by `GEMINI_MODEL`, default `gemini-2.0-flash-lite`) via `@google/generative-ai` |
 | PDF parsing | `pdf-parse` (server-side, in memory — files are never stored) |
 | Database | None — stateless per session |
 
-Gemini is called with `responseMimeType: "application/json"`, which forces valid JSON output and removes the need to strip markdown fences.
+Gemini is called with `responseMimeType: "application/json"`, which forces valid JSON output. The server also tolerates truncated output (it repairs JSON cut off at the token cap) and retries transient `503`/`429` errors with backoff.
 
 ## What you get per review
 
-1. **Danger zones** — the 3–5 riskiest clauses, ranked, with verbatim excerpts and severity badges.
-2. **Clause-by-clause review** — every clause scored 1–10, color-coded green/yellow/red.
-3. **Indian law compliance** — specific flags like *"Violates Section 27, Indian Contract Act, 1872"*, checked against the ICA 1872, DPDP Act 2023, IT Act 2000, Specific Relief Act 1963, and Shops & Establishments law.
-4. **Redlined version** — original vs. suggested rewrite side by side, labelled *"Suggested rewrite — verify with a lawyer"*.
-5. **Role-based summary** — lawyers get case citations and statutory reasoning; everyone else gets a plain-English "are you protected?" checklist.
+1. **Risk verdict** — a 0–100 risk score with a *sign / negotiate / do-not-sign* call and a one-paragraph rationale, scored for **your** role.
+2. **Deal snapshot** — the parties and the key commercial terms (money, term, termination, governing law, dispute resolution) in one glance — the abstract a partner reads first.
+3. **Danger zones** — the riskiest clauses, ranked, with verbatim excerpts and severity badges.
+4. **Missing protections** — what a good associate catches that most tools miss: the clauses that *should* be there but aren't (liability cap, indemnity, force majeure, data terms…), with a clause to paste in.
+5. **Clause-by-clause review** — every clause scored 1–10, color-coded green/yellow/red.
+6. **Indian-law compliance** — specific flags like *"Violates Section 27, Indian Contract Act, 1872"*, applied **by contract type** across 25+ statutes (see below), including stamp duty and registration adequacy.
+7. **Redlined version** — original vs. suggested rewrite side by side, labelled *"Suggested rewrite — verify with a lawyer"*.
+8. **Negotiation playbook** — for each issue: what to **ask** for, an acceptable **fallback**, and **why** it's reasonable.
+9. **Obligations & key dates** — who must do what, by when, and what happens if they miss it.
+10. **Role-based summary** — lawyers get case citations and statutory reasoning; everyone else gets a plain-English "are you protected?" checklist.
 
-Plus a silent proofing sweep woven into the analysis: undefined terms, broken cross-references ("see Clause 4.2" when it doesn't exist), vague language ("promptly", "reasonable time"), party-name inconsistencies, and shall/may/will misuse.
+Plus a silent proofing sweep: undefined terms, broken cross-references ("see Clause 4.2" when it doesn't exist), vague language ("promptly", "reasonable time"), party-name inconsistencies, and shall/may/will misuse.
+
+### Statute coverage (the legal "brain")
+
+The relevant statutes are selected **per contract type** (an NDA, an employment agreement and a vendor supply contract are each checked against a different, focused set) — this lives in [`server/src/lib/legalKnowledge.js`](server/src/lib/legalKnowledge.js). Acts covered include: Indian Contract Act 1872, Specific Relief Act 1963, Limitation Act 1963, Indian Stamp Act 1899, Registration Act 1908, Sale of Goods Act 1930, MSMED Act 2006, Negotiable Instruments Act 1881, Arbitration & Conciliation Act 1996, IT Act 2000, DPDP Act 2023, Copyright Act 1957 (+ Trade Marks/Patents/Designs), Companies Act 2013, Competition Act 2002, Consumer Protection Act 2019, FEMA 1999, CGST Act 2017, Transfer of Property Act 1882, the Labour Codes 2019–20 (and the predecessor labour Acts still in force), the POSH Act 2013, and the 2024 criminal-law renames (BNS/BNSS/BSA).
+
+### A note on the AI tier
+
+A review makes **3 streaming Gemini calls** (briefing → clause review → action plan). On Gemini's **free tier** the daily request quota is small (e.g. ~20/day for `gemini-2.5-flash`) and the endpoint frequently returns `503 high demand`, so a few back-to-back reviews can exhaust the day's quota. For real use, put a billed Gemini key on the project (or point `GEMINI_MODEL` at a higher-quota model). The retry/backoff logic smooths over momentary blips but cannot create quota.
 
 ---
 
@@ -76,7 +89,10 @@ Prefer separate terminals? `npm run dev:server` and `npm run dev:client`.
   "userRole": "Lawyer | Founder | HR Manager | Freelancer"
 }
 ```
-Returns the full report JSON (`dangerZones`, `clauseReview`, `complianceFlags`, `redlines`, `roleSummary`, `proofingIssues`, `disclaimer`). Errors handled: empty text, text under 100 chars, text over 500,000 chars, missing/invalid API key, Gemini failures.
+Returns the full report JSON (`dealSummary`, `overallRisk`, `dangerZones`, `missingClauses`, `clauseReview`, `complianceFlags`, `redlines`, `negotiationPlaybook`, `obligations`, `roleSummary`, `proofingIssues`, `disclaimer`). Errors handled: empty text, text under 100 chars, text over 500,000 chars, missing/invalid API key, Gemini failures.
+
+### `POST /api/review/stream`
+Same body as `/api/review`, but streams the report over Server-Sent Events in three phases (briefing → clause review → action plan) so the UI renders each section as it arrives. This is what the web app uses.
 
 ## Environment variables
 

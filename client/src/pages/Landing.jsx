@@ -22,29 +22,34 @@ const ROLES = [
 const FEATURES = [
   {
     num: "01",
-    title: "Danger zones",
-    text: "The 3–5 riskiest clauses, pulled out and ranked first — verbatim excerpt, plain-English risk, severity badge.",
-    tone: "danger",
+    title: "Risk verdict & deal snapshot",
+    text: "A 0–100 risk score with a sign / negotiate / walk-away call, plus a one-glance abstract of the parties, money, term and exit — the brief a partner reads first.",
   },
   {
     num: "02",
-    title: "Clause-by-clause review",
-    text: "Every clause scored 1–10 with an explanation of why it's safe, cautionary, or dangerous.",
+    title: "Danger zones",
+    text: "The riskiest clauses, pulled out and ranked first — verbatim excerpt, plain-English risk, severity badge.",
+    tone: "danger",
   },
   {
     num: "03",
-    title: "Indian law compliance",
-    text: "Specific flags like “Violates Section 27, Indian Contract Act, 1872” — across ICA, DPDP Act 2023, IT Act, Specific Relief Act and Shops & Establishments law.",
+    title: "Missing protections",
+    text: "What a good associate catches that AI usually misses — the clauses that should be there but aren't: liability caps, indemnity, force majeure, data terms and more.",
   },
   {
     num: "04",
-    title: "Redlined rewrites",
-    text: "Original clause and a fair, enforceable rewrite side by side — ready to paste into your negotiation.",
+    title: "Indian law compliance",
+    text: "Specific flags like “Violates Section 27, Indian Contract Act, 1872” — applied by contract type across 25+ statutes, including stamp duty and registration.",
   },
   {
     num: "05",
-    title: "A verdict for your role",
-    text: "Lawyers get citations and reasoning. Everyone else gets an “are you protected?” checklist with zero jargon.",
+    title: "Redlines & a negotiation playbook",
+    text: "A fair, enforceable rewrite for every risky clause — plus what to ask for, an acceptable fallback, and why it's reasonable.",
+  },
+  {
+    num: "06",
+    title: "Obligations & key dates",
+    text: "Who must do what, by when, and what happens if they miss it — the deadlines matrix extracted for you, with an “are you protected?” verdict for your role.",
   },
 ];
 
@@ -53,7 +58,14 @@ const ACTS = [
   "DPDP Act, 2023",
   "IT Act, 2000",
   "Specific Relief Act, 1963",
-  "Shops & Establishments Acts",
+  "Companies Act, 2013",
+  "MSMED Act, 2006",
+  "Sale of Goods Act, 1930",
+  "Arbitration Act, 1996",
+  "Copyright Act, 1957",
+  "Stamp & Registration Acts",
+  "Labour Codes 2019–20",
+  "+ 14 more",
 ];
 
 export default function Landing() {
@@ -71,9 +83,10 @@ export default function Landing() {
             India's first contract review tool built for everyone.
           </h1>
           <p className="mt-5 text-base sm:text-lg text-white/75 max-w-2xl">
-            Upload any contract and get danger zones, compliance flags and
-            ready-to-use redlines — checked against the Indian Contract Act,
-            the DPDP Act 2023 and the IT Act. No legal training needed.
+            Upload any contract for a full associate-grade review: a risk
+            verdict, danger zones, the protections you're missing, ready-to-use
+            redlines and a negotiation playbook — checked against 25+ Indian
+            statutes. No legal training needed.
           </p>
           <div className="mt-8 flex flex-col sm:flex-row gap-3">
             <Link to="/review" className="btn-primary !bg-white !text-navy hover:!bg-white/90">
@@ -123,7 +136,7 @@ export default function Landing() {
       {/* ── Features ── */}
       <section className="border-t border-navy/10 bg-navy/[0.02]">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-14 sm:py-20">
-          <h2 className="text-2xl sm:text-3xl font-bold">One upload, five outputs</h2>
+          <h2 className="text-2xl sm:text-3xl font-bold">One upload, a full review</h2>
           <div className="mt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-px bg-navy/10 border border-navy/10 rounded-lg overflow-hidden">
             {FEATURES.map((f) => (
               <div key={f.num} className="bg-white p-6">
